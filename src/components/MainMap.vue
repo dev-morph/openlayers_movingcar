@@ -1,6 +1,9 @@
 <template>
 	<div class="map__wrapper">
-		<p>{{ carPosition.title }}</p>
+		<p>{{ animating ? 'MOVING...!' : 'STOPPED!' }}</p>
+		<p :style="{ color: 'rgba(160, 51, 255, 1)', fontWeight: 'bolder' }">
+			CURRENT POSITION
+		</p>
 		<p>{{ carPosition.pos }}</p>
 		<button @click="clickHandler">
 			{{ animating ? 'Stop Car' : 'Move Car' }}
@@ -47,8 +50,7 @@ export default {
 		const mapCenter = fromLonLat([126.92441579076426, 37.529266034555306])
 		const animating = ref(false)
 		const carPosition = reactive({
-			pos: fromLonLat([126.92513362770029, 37.53047254039565]),
-			title: 'OpenlayersMap',
+			pos: [126.92512160311284, 37.53048855990768],
 		})
 
 		function clickHandler() {
@@ -57,7 +59,6 @@ export default {
 			} else {
 				startAnimation()
 			}
-			this.carPosition.title = 'changed!'
 		}
 
 		// ####### Moving Marker with POLY LINE
@@ -125,7 +126,7 @@ export default {
 		})
 
 		// moving animation
-		const speed = Number(500)
+		const speed = Number(300)
 		let lastTime
 		let distance = 0
 		function moveFeature(event) {
@@ -142,19 +143,21 @@ export default {
 					currentRotation < 0
 						? (currentRotation / Math.PI + 1) * Math.PI
 						: (currentRotation / Math.PI - 1) * Math.PI
-				console.log('direction changed!')
+				console.log('arrived!!')
 
 				endAnimation()
 				animating.value = false
-				styleMap['car'].getImage().setRotation(flipRotation)
+				// styleMap['car'].getImage().setRotation(flipRotation)
 				return
 			}
+
 			distance = leftDistance
 			lastTime = time
 
 			const currentCoordinate = route.getCoordinateAt(
 				distance > 1 ? 2 - distance : distance
 			)
+			carPosition.pos = toLonLat(currentCoordinate)
 			movingPosition.setCoordinates(currentCoordinate)
 			const vectorContext = getVectorContext(event)
 			vectorContext.setStyle(styleMap.car)
