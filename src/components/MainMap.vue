@@ -36,12 +36,17 @@ import {
 // import Logo from '@/assets/logo.png'
 // import CarIcon from '@/assets/car_top.svg'
 import PoliceCar from '@/assets/policecar.png'
-import { convertCoordinatesToGeometry } from '@/util/geoUtil'
+import {
+	convertCoordinatesToGeometry,
+	getDegreesFromCoordinates,
+	radianToDegree,
+	degreesToRadian,
+} from '@/util/geoUtil'
 // to move car
 import Polyline from 'ol/format/Polyline.js'
-import { LineString } from 'ol/geom'
 import { getVectorContext } from 'ol/render.js'
 import { onMounted } from 'vue'
+import { getAngle } from 'ol/style/Circle.js'
 
 export default {
 	name: 'MainMap',
@@ -116,7 +121,7 @@ export default {
 					src: PoliceCar,
 					offset: [0, 0],
 					scale: 0.08,
-					rotation: -0.2 * Math.PI,
+					rotation: 3.121592653589793 + +2.523936814256307,
 				}),
 			}),
 		}
@@ -129,15 +134,12 @@ export default {
 		const speed = Number(300)
 		let lastTime
 		let distance = 0
+
 		function moveFeature(event) {
 			const time = event.frameState.time
 			const elapsedTime = time - lastTime
 			const leftDistance = (distance + (speed * elapsedTime) / 1e6) % 2
-			console.log('distance!', distance, '---> ', leftDistance)
-			if (
-				(distance <= 1 && leftDistance >= 1) ||
-				(distance >= 1 && leftDistance <= 1)
-			) {
+			if (distance <= 1 && leftDistance >= 1) {
 				const currentRotation = styleMap['car'].getImage().getRotation()
 				const flipRotation =
 					currentRotation < 0
@@ -160,6 +162,12 @@ export default {
 			carPosition.pos = toLonLat(currentCoordinate)
 			movingPosition.setCoordinates(currentCoordinate)
 			const vectorContext = getVectorContext(event)
+
+			//TODO: route.flatCoordinates안에 내가 설정한 길 정보가 들어가 있다.
+			//이걸 현재 위치와 비교하여, 지났는지 안지났는지 방향을 얼마나 틀어야 할 지 알아야 한다.
+			console.log('currentCoordinate!', currentCoordinate)
+			console.log('flatCoordinate!', route.flatCoordinates)
+			console.log('route ---> !', route)
 			vectorContext.setStyle(styleMap.car)
 			vectorContext.drawGeometry(movingPosition)
 			// tell OpenLayers to continue the postrender animation
@@ -193,12 +201,18 @@ export default {
 			lastTime = null
 			distance = 0
 		}
-
+		// const styleFunction = function (feature) {
+		// 	console.log(feature)
+		// 	return styleMap[feature.getType('type')]
+		// }
 		//Vector layer 선언
 		const vectorLayer = new VectorLayer({
 			source: vectorSource,
 			// 스타일 매핑
-			style: (feature) => styleMap[feature.get('type')],
+			style: (feature) => {
+				console.log('feature', feature)
+				return styleMap[feature.get('type')]
+			},
 		})
 
 		let olMap
@@ -221,6 +235,15 @@ export default {
 				const currentPosition = toLonLat(event.coordinate)
 				alert(currentPosition)
 			})
+
+			const lat1 = 37.53048855990768
+			const lon1 = 126.92512160311284
+			const lat2 = 37.52956814419788
+			const lon2 = 126.92360304723802
+
+			const angle = getDegreesFromCoordinates(lat1, lon1, lat2, lon2)
+			console.log(degreesToRadian(angle))
+			console.log(degreesToRadian(180))
 		})
 
 		return {
@@ -251,6 +274,9 @@ export default {
 button {
 	width: 5rem;
 	height: 2rem;
+}
+button:hover {
+	cursor: pointer;
 }
 .map {
 	width: 100vw;

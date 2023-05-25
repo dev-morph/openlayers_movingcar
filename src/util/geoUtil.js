@@ -63,3 +63,41 @@ export function createCarIcon(carPosition) {
 
 	return iconFeature
 }
+
+export function getDegreesFromCoordinates(lon1, lat1, lon2, lat2) {
+	// Convert degrees to radians
+	const lat1Rad = (lat1 * Math.PI) / 180
+	const lon1Rad = (lon1 * Math.PI) / 180
+	const lat2Rad = (lat2 * Math.PI) / 180
+	const lon2Rad = (lon2 * Math.PI) / 180
+
+	// Calculate the angle using the spherical law of cosines formula
+	const deltaLon = lon2Rad - lon1Rad
+	const y = Math.sin(deltaLon) * Math.cos(lat2Rad)
+	const x =
+		Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+		Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(deltaLon)
+	let angleRad = Math.atan2(y, x)
+	let angleDeg = (angleRad * 180) / Math.PI
+
+	// Ensure the angle is positive
+	if (angleDeg < 0) {
+		angleDeg += 360
+	}
+
+	return angleDeg
+}
+
+export function radianToDegree(radian) {
+	if (typeof radian !== 'number') {
+		throw new Error('radian should be number Type!')
+	}
+	return (radian * 180) / Math.PI
+}
+
+export function degreesToRadian(degrees) {
+	if (typeof degrees !== 'number') {
+		throw new Error('degrees should be number Type!')
+	}
+	return (degrees * Math.PI) / 180
+}
