@@ -8,9 +8,20 @@
 			<button @click="gobackHandler">Go Back</button>
 		</div>
 
-		<p>CLICK POSITION: {{ mousePosition }}</p>
-
 		<div class="map" ref="map"></div>
+		<div class="popup" id="popup" ref="popUp">
+			<div class="popup__content" ref="content">
+				<p>
+					위도:
+					{{ popupContent.position.length > 0 && popupContent.position[1] }}
+				</p>
+				<p>
+					경도:
+					{{ popupContent.position.length > 0 && popupContent.position[0] }}
+				</p>
+				<p>detail: {{ popupContent.desc }}</p>
+			</div>
+		</div>
 	</div>
 </template>
 
@@ -21,15 +32,14 @@ import OlMap from 'ol/Map.js'
 import OSM from 'ol/source/OSM'
 import VectorLayer from 'ol/layer/Vector.js'
 import VectorSource from 'ol/source/Vector.js'
-import { fromLonLat, toLonLat, transform } from 'ol/proj.js'
+import { fromLonLat, toLonLat } from 'ol/proj.js'
 import { defaults } from 'ol/control.js'
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { Style, Circle as CircleStyle, Stroke, Fill } from 'ol/style'
-import GeoJSON from 'ol/format/GeoJSON.js'
 import Feature from 'ol/Feature'
-import { LineString, Point, MultiLineString } from 'ol/geom'
+import { Point, MultiLineString } from 'ol/geom'
 import { getVectorContext } from 'ol/render'
-import { esaseIn } from 'ol/easing'
+import Overlay from 'ol/Overlay.js'
 
 export default {
 	name: 'TestPage',
@@ -116,10 +126,13 @@ export default {
 				},
 			],
 		}
-
 		const animating = ref(false)
 		const map = ref(null)
-		const mousePosition = ref([])
+		const popUp = ref()
+		const content = ref()
+		const popupContent = reactive({ position: [], desc: null })
+		const popupShow = ref(false)
+
 		const center = fromLonLat([126.9251405697578, 37.53033241217628])
 		const styles = {
 			Point: new Style({
@@ -154,15 +167,11 @@ export default {
 
 		const features = testGeoJson.features.map((geoJsonFeature) => {
 			const coordinates = geoJsonFeature.geometry.coordinates
-
 			const geometry = new Point(fromLonLat(coordinates))
-
 			const feature = new Feature({
 				geometry: geometry,
-
 				properties: geoJsonFeature.properties,
 			})
-
 			return feature
 		})
 
@@ -263,18 +272,19 @@ export default {
 		}
 
 		function gobackHandler() {
-			console.log('currentIndex.value', currentIndex.value)
 			if (currentIndex.value === 0) {
 				startAnimation()
 				stopAnimation()
 			} else {
 				currentIndex.value--
-
-				console.log(currentIndex.value)
 			}
 		}
 
 		function startAnimation() {
+			//팝업이 켜져 있다면, 꺼주고 애니메이션 start
+			if (popupShow.value) {
+				popUpHandler()
+			}
 			animating.value = true
 			start = Date.now()
 			vectorLayer.on('postrender', moveFeature)
@@ -319,16 +329,33 @@ export default {
 			style: styleHandler,
 		})
 
+		function popUpHandler(coordinates) {
+			// 팝업 없는 경우, 표시
+			if (
+				popupLayer.getPosition() === undefined &&
+				coordinates !== undefined &&
+				Array.isArray(coordinates) &&
+				!popupShow.value
+			) {
+				popupShow.value = true
+				popupLayer.setPosition(coordinates)
+			}
+
+			// 이미 팝업이 visible 한 상태에서 클릭한 경우, 없애준다.
+			else if (popupLayer.getPosition() !== undefined && popupShow.value) {
+				popupShow.value = false
+				popupLayer.setPosition(undefined)
+			}
+		}
+
 		// Map Config
-
 		let olMap
-
+		let popupLayer
 		onMounted(() => {
 			olMap = new OlMap({
 				target: map.value,
 
 				// override default controls to disappear
-
 				controls: defaults({
 					attribution: false,
 					zoom: false,
@@ -336,37 +363,83 @@ export default {
 				}),
 
 				// add layers to Map Object
-
 				layers: [new OlLayerTile({ source: new OSM() }), vectorLayer],
 
 				// add View Object that determines how and where to show in Map Object
 				// e.g. center, zoom-level, projection
-
 				view: new OlView({
 					center: center, // 여의도 좌표
 					zoom: 17,
 				}),
 			})
 
+			popupLayer = new Overlay({
+				element: popUp.value,
+				// autoPan: true,
+				stopEvent: false,
+				autoPan: true,
+				autoPanAnimation: {
+					duration: 250,
+				},
+			})
+			olMap.addOverlay(popupLayer)
+
 			// if you want to add event on Map Object,
 			// you can add event like below,
 
 			olMap.on('click', (event) => {
 				const currentPosition = toLonLat(event.coordinate)
-				mousePosition.value = currentPosition
+
+				const feat = olMap.forEachFeatureAtPixel(
+					event.pixel,
+					function (feature, layer) {
+						return feature
+					}
+				)
+				if (feat && feat.get('type') === 'Car') {
+					const currentCoordinates = feat.getGeometry().getCoordinates()
+					popupContent.position = toLonLat(currentCoordinates)
+					popupContent.desc =
+						features[currentIndex.value].getProperties().properties
+
+					// popupLayer.setPosition(feat.getGeometry().getCoordinates())
+					popUpHandler(currentCoordinates)
+				} else {
+					popUpHandler()
+				}
 			})
+
+			olMap.on('pointermove', (event) => {
+				const feat = olMap.forEachFeatureAtPixel(
+					event.pixel,
+					function (feature, layer) {
+						return feature
+					}
+				)
+				if (feat && feat.get('type') === 'Car') {
+					olMap.getTargetElement().style.cursor = 'pointer'
+				} else {
+					olMap.getTargetElement().style.cursor = ''
+				}
+			})
+
+			// olMap.addLayer(popupLayer)
 		})
 
 		return {
 			map,
+			popUp,
+			content,
 			olMap,
+			popupLayer,
+			popupContent,
 			movingSource,
-			mousePosition,
 			vectorLayer,
 			moveFeature,
 			animating,
 			clickHandler,
 			gobackHandler,
+			popUpHandler,
 		}
 	},
 }
@@ -402,5 +475,36 @@ button {
 button:hover {
 	background-color: #42d392;
 	cursor: pointer;
+}
+
+.popup {
+	position: absolute;
+	background-color: white;
+	/*--webkit-filter: drop-shadow(0 1px 4px rgba(0,0,0,0.2));*/
+	filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.2));
+	padding: 15px;
+	border-radius: 10px;
+	border: 1px solid #cccccc;
+	bottom: 12px;
+	left: -50px;
+	min-width: 180px;
+	font-size: 0.7rem;
+}
+
+.popup::after,
+.popup::before {
+	top: 100%;
+	border: solid transparent;
+	content: '';
+	height: 0;
+	width: 0;
+	position: absolute;
+	pointer-events: none;
+}
+.popup::after {
+	border-top-color: white;
+	border-width: 10px;
+	left: 48px;
+	margin-left: -10px;
 }
 </style>
