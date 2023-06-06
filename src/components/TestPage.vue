@@ -34,12 +34,18 @@ import VectorLayer from 'ol/layer/Vector.js'
 import VectorSource from 'ol/source/Vector.js'
 import { fromLonLat, toLonLat } from 'ol/proj.js'
 import { defaults } from 'ol/control.js'
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { Style, Circle as CircleStyle, Stroke, Fill } from 'ol/style'
 import Feature from 'ol/Feature'
 import { Point, MultiLineString } from 'ol/geom'
 import { getVectorContext } from 'ol/render'
 import Overlay from 'ol/Overlay.js'
+import {
+	MapMaster,
+	createCustomFeature,
+	createVectorSource,
+	createVectorLayer,
+} from '@/util/mapManager'
 
 export default {
 	name: 'TestPage',
@@ -126,6 +132,74 @@ export default {
 				},
 			],
 		}
+		const testGeoJson2 = {
+			type: 'FeatureCollection',
+			features: [
+				{
+					type: 'Feature',
+					geometry: {
+						type: 'Point',
+						coordinates: [126.92255273626091, 37.52895159476866],
+					},
+					properties: {
+						heading: 1.3,
+						radius: 10,
+					},
+				},
+
+				{
+					type: 'Feature',
+					geometry: {
+						type: 'Point',
+						coordinates: [126.92193795286411, 37.52859742232047],
+					},
+
+					properties: {
+						heading: 1.5,
+						radius: 20,
+					},
+				},
+
+				{
+					type: 'Feature',
+					geometry: {
+						type: 'Point',
+						coordinates: [126.91977682772502, 37.530770776174876],
+					},
+
+					properties: {
+						heading: 1.7,
+						radius: 30,
+					},
+				},
+
+				{
+					type: 'Feature',
+					geometry: {
+						type: 'Point',
+						coordinates: [126.92036867057597, 37.531144586357684],
+					},
+
+					properties: {
+						heading: 1.8,
+						radius: 40,
+					},
+				},
+
+				{
+					type: 'Feature',
+					geometry: {
+						type: 'Point',
+						coordinates: [126.92255273626091, 37.52895159476866],
+					},
+
+					properties: {
+						heading: 1.9,
+						radius: 20,
+					},
+				},
+			],
+		}
 		const animating = ref(false)
 		const map = ref(null)
 		const popUp = ref()
@@ -176,7 +250,6 @@ export default {
 		})
 
 		// 스타일 적용 함수
-
 		function styleHandler(feature) {
 			const customType = feature.values_.type
 
@@ -247,7 +320,6 @@ export default {
 			const vectorContext = getVectorContext(event)
 
 			// Important
-
 			// 정해진 시간(duration)에서 실제 지나간 시간 비율로 현재 좌표를 구해 애니메이션 효과를 넣어준다.
 
 			const elapsedRatio = elapsedTime / duration
@@ -255,8 +327,6 @@ export default {
 				from[0] + (to[0] - from[0]) * elapsedRatio,
 				from[1] + (to[1] - from[1]) * elapsedRatio,
 			])
-
-			console.log('currentPosition', currentPosition.getCoordinates())
 
 			// 구한 현재 좌표와 스타일을 적용시킨다.
 
@@ -315,19 +385,15 @@ export default {
 		const lineFeature = new Feature(multiLine)
 		const startPosition = new Point(multiLine.getCoordinates()[0][0])
 		const carPosition = startPosition.clone()
-		const carFeature = new Feature({
+		const carFeature = createCustomFeature({
+			id: 1,
 			type: 'Car',
 			geometry: carPosition,
 		})
 
-		const movingSource = new VectorSource({
-			features: [lineFeature, carFeature],
-		}) //Vector layer 선언
+		const movingSource = createVectorSource([lineFeature, carFeature]) //Vector layer 선언
 
-		const vectorLayer = new VectorLayer({
-			source: movingSource,
-			style: styleHandler,
-		})
+		const vectorLayer = createVectorLayer(movingSource, styleHandler)
 
 		function popUpHandler(coordinates) {
 			// 팝업 없는 경우, 표시
@@ -349,60 +415,30 @@ export default {
 		}
 
 		// Map Config
+		let mapMaster
 		let olMap
 		let popupLayer
 		onMounted(() => {
-			olMap = new OlMap({
-				target: map.value,
+			mapMaster = new MapMaster(map.value, center)
+			mapMaster.addLayer(vectorLayer)
+			popupLayer = mapMaster.createOverlay(popUp.value)
+			mapMaster.addOverlay(popupLayer)
 
-				// override default controls to disappear
-				controls: defaults({
-					attribution: false,
-					zoom: false,
-					rotate: false,
-				}),
-
-				// add layers to Map Object
-				layers: [new OlLayerTile({ source: new OSM() }), vectorLayer],
-
-				// add View Object that determines how and where to show in Map Object
-				// e.g. center, zoom-level, projection
-				view: new OlView({
-					center: center, // 여의도 좌표
-					zoom: 17,
-				}),
-			})
-
-			popupLayer = new Overlay({
-				element: popUp.value,
-				// autoPan: true,
-				stopEvent: false,
-				autoPan: true,
-				autoPanAnimation: {
-					duration: 250,
-				},
-			})
-			olMap.addOverlay(popupLayer)
+			olMap = mapMaster.getOlMap()
 
 			// if you want to add event on Map Object,
 			// you can add event like below,
 
 			olMap.on('click', (event) => {
 				const currentPosition = toLonLat(event.coordinate)
-
-				const feat = olMap.forEachFeatureAtPixel(
-					event.pixel,
-					function (feature, layer) {
-						return feature
-					}
-				)
+				const feat = mapMaster.getFeaturesByEvent(event)
+				console.log('feat', feat)
 				if (feat && feat.get('type') === 'Car') {
 					const currentCoordinates = feat.getGeometry().getCoordinates()
 					popupContent.position = toLonLat(currentCoordinates)
 					popupContent.desc =
 						features[currentIndex.value].getProperties().properties
 
-					// popupLayer.setPosition(feat.getGeometry().getCoordinates())
 					popUpHandler(currentCoordinates)
 				} else {
 					popUpHandler()
@@ -422,11 +458,15 @@ export default {
 					olMap.getTargetElement().style.cursor = ''
 				}
 			})
+		})
 
-			// olMap.addLayer(popupLayer)
+		onBeforeUnmount(() => {
+			// Clean up resources about MapMaster Object to rerender when routing is activated!
+			MapMaster.olMap = null
 		})
 
 		return {
+			mapMaster,
 			map,
 			popUp,
 			content,
