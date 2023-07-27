@@ -6,9 +6,18 @@
 			</button>
 
 			<button @click="gobackHandler">Go Back</button>
+
+			<button @click="drawModeHandler" :class="{ activeDrawMode: drawMode }">
+				{{ drawMode ? '경로 그리기 모드 정지' : '경로 그리기 모드 시작' }}
+			</button>
+
+			<button @click="rotateHandler">ROTATE ARROW</button>
 		</div>
 
 		<div class="map" ref="map"></div>
+		<div class="dot" id="dot" ref="dot">
+			<div class="arrow" id="arrow"></div>
+		</div>
 		<div class="popup" id="popup" ref="popUp">
 			<div class="popup__content" ref="content">
 				<p>
@@ -132,80 +141,84 @@ export default {
 				},
 			],
 		}
-		const testGeoJson2 = {
-			type: 'FeatureCollection',
-			features: [
-				{
-					type: 'Feature',
-					geometry: {
-						type: 'Point',
-						coordinates: [126.92255273626091, 37.52895159476866],
-					},
-					properties: {
-						heading: 1.3,
-						radius: 10,
-					},
-				},
+		// const testGeoJson2 = {
+		// 	type: 'FeatureCollection',
+		// 	features: [
+		// 		{
+		// 			type: 'Feature',
+		// 			geometry: {
+		// 				type: 'Point',
+		// 				coordinates: [126.92255273626091, 37.52895159476866],
+		// 			},
+		// 			properties: {
+		// 				heading: 1.3,
+		// 				radius: 10,
+		// 			},
+		// 		},
 
-				{
-					type: 'Feature',
-					geometry: {
-						type: 'Point',
-						coordinates: [126.92193795286411, 37.52859742232047],
-					},
+		// 		{
+		// 			type: 'Feature',
+		// 			geometry: {
+		// 				type: 'Point',
+		// 				coordinates: [126.92193795286411, 37.52859742232047],
+		// 			},
 
-					properties: {
-						heading: 1.5,
-						radius: 20,
-					},
-				},
+		// 			properties: {
+		// 				heading: 1.5,
+		// 				radius: 20,
+		// 			},
+		// 		},
 
-				{
-					type: 'Feature',
-					geometry: {
-						type: 'Point',
-						coordinates: [126.91977682772502, 37.530770776174876],
-					},
+		// 		{
+		// 			type: 'Feature',
+		// 			geometry: {
+		// 				type: 'Point',
+		// 				coordinates: [126.91977682772502, 37.530770776174876],
+		// 			},
 
-					properties: {
-						heading: 1.7,
-						radius: 30,
-					},
-				},
+		// 			properties: {
+		// 				heading: 1.7,
+		// 				radius: 30,
+		// 			},
+		// 		},
 
-				{
-					type: 'Feature',
-					geometry: {
-						type: 'Point',
-						coordinates: [126.92036867057597, 37.531144586357684],
-					},
+		// 		{
+		// 			type: 'Feature',
+		// 			geometry: {
+		// 				type: 'Point',
+		// 				coordinates: [126.92036867057597, 37.531144586357684],
+		// 			},
 
-					properties: {
-						heading: 1.8,
-						radius: 40,
-					},
-				},
+		// 			properties: {
+		// 				heading: 1.8,
+		// 				radius: 40,
+		// 			},
+		// 		},
 
-				{
-					type: 'Feature',
-					geometry: {
-						type: 'Point',
-						coordinates: [126.92255273626091, 37.52895159476866],
-					},
+		// 		{
+		// 			type: 'Feature',
+		// 			geometry: {
+		// 				type: 'Point',
+		// 				coordinates: [126.92255273626091, 37.52895159476866],
+		// 			},
 
-					properties: {
-						heading: 1.9,
-						radius: 20,
-					},
-				},
-			],
-		}
+		// 			properties: {
+		// 				heading: 1.9,
+		// 				radius: 20,
+		// 			},
+		// 		},
+		// 	],
+		// }
 		const animating = ref(false)
+		const drawMode = ref(false)
 		const map = ref(null)
 		const popUp = ref()
 		const content = ref()
 		const popupContent = reactive({ position: [], desc: null })
 		const popupShow = ref(false)
+
+		const dot = ref(null)
+		const degree = ref(0)
 
 		const center = fromLonLat([126.9251405697578, 37.53033241217628])
 		const styles = {
@@ -266,6 +279,11 @@ export default {
 			} else {
 				pauseAnimation()
 			}
+		}
+
+		function drawModeHandler() {
+			drawMode.value = !drawMode.value
+			console.log(drawMode.value)
 		}
 
 		const duration = 1000
@@ -391,7 +409,8 @@ export default {
 			geometry: carPosition,
 		})
 
-		const movingSource = createVectorSource([lineFeature, carFeature]) //Vector layer 선언
+		// const movingSource = createVectorSource([lineFeature, carFeature]) //Vector layer 선언
+		const movingSource = createVectorSource([carFeature]) //Vector layer 선언
 
 		const vectorLayer = createVectorLayer(movingSource, styleHandler)
 
@@ -406,7 +425,6 @@ export default {
 				popupShow.value = true
 				popupLayer.setPosition(coordinates)
 			}
-
 			// 이미 팝업이 visible 한 상태에서 클릭한 경우, 없애준다.
 			else if (popupLayer.getPosition() !== undefined && popupShow.value) {
 				popupShow.value = false
@@ -414,15 +432,39 @@ export default {
 			}
 		}
 
+		function rotateHandler() {
+			degree.value += 45
+			const element = document.querySelector('#arrow')
+			// element.style.transform = 'translate(-50%, -50%) rotate(90deg)'
+			element.animate(
+				{
+					transform: [`translate(-50%, -50%) rotate(${degree.value}deg)`],
+				},
+				{
+					duration: 500,
+					fill: 'forwards',
+					easing: 'ease',
+				}
+			)
+		}
+
 		// Map Config
 		let mapMaster
 		let olMap
 		let popupLayer
+		let dotLayer
 		onMounted(() => {
 			mapMaster = new MapMaster(map.value, center)
 			mapMaster.addLayer(vectorLayer)
+			// popupLayer = mapMaster.createOverlay(dot.value)
 			popupLayer = mapMaster.createOverlay(popUp.value)
+			dotLayer = new Overlay({
+				element: dot.value,
+				stopEvent: false,
+				autoPan: false,
+			})
 			mapMaster.addOverlay(popupLayer)
+			mapMaster.addOverlay(dotLayer)
 
 			olMap = mapMaster.getOlMap()
 
@@ -432,7 +474,8 @@ export default {
 			olMap.on('click', (event) => {
 				const currentPosition = toLonLat(event.coordinate)
 				const feat = mapMaster.getFeaturesByEvent(event)
-				console.log('feat', feat)
+
+				// 클릭 대상이 Car인 경우에만, 자동차 상세정보를 보여주는 팝업 표시
 				if (feat && feat.get('type') === 'Car') {
 					const currentCoordinates = feat.getGeometry().getCoordinates()
 					popupContent.position = toLonLat(currentCoordinates)
@@ -440,8 +483,14 @@ export default {
 						features[currentIndex.value].getProperties().properties
 
 					popUpHandler(currentCoordinates)
-				} else {
+				}
+				// 팝업이 나와 있는 경우에 화면을 클릭한다면 펼쳐진 팝업을 제거한다.
+				else if (popupLayer.getPosition() !== undefined && popupShow.value) {
 					popUpHandler()
+				}
+
+				if (drawMode.value) {
+					alert('here')
 				}
 			})
 
@@ -454,10 +503,15 @@ export default {
 				)
 				if (feat && feat.get('type') === 'Car') {
 					olMap.getTargetElement().style.cursor = 'pointer'
-				} else {
+				}
+				// else if(drawMode){
+				// }
+				else {
 					olMap.getTargetElement().style.cursor = ''
 				}
 			})
+
+			dotLayer.setPosition(fromLonLat([126.92179651968831, 37.5314476361026]))
 		})
 
 		onBeforeUnmount(() => {
@@ -466,6 +520,7 @@ export default {
 		})
 
 		return {
+			//variables
 			mapMaster,
 			map,
 			popUp,
@@ -476,10 +531,16 @@ export default {
 			movingSource,
 			vectorLayer,
 			moveFeature,
+			drawMode,
 			animating,
+			dot,
+			degree,
+			//function
 			clickHandler,
 			gobackHandler,
 			popUpHandler,
+			drawModeHandler,
+			rotateHandler,
 		}
 	},
 }
@@ -517,6 +578,13 @@ button:hover {
 	cursor: pointer;
 }
 
+.activeDrawMode {
+	background-color: rgb(255, 68, 68);
+}
+.activeDrawMode:hover {
+	background-color: rgb(255, 101, 101);
+}
+
 .popup {
 	position: absolute;
 	background-color: white;
@@ -547,4 +615,56 @@ button:hover {
 	left: 48px;
 	margin-left: -10px;
 }
+
+.dot {
+	content: '';
+	width: 0.85rem;
+	height: 0.85rem;
+	position: absolute;
+	background-color: #0475f4;
+	border-radius: 50%;
+	border: 2px solid whitesmoke;
+	box-shadow: 0px 0px 10px 2px #0475f4, 0px 0px 0px 10px rgba(4, 117, 244, 0.2);
+}
+
+.arrow {
+	width: 0px;
+	height: 1.8rem;
+	background-color: black;
+	position: absolute;
+	/* top: -50%; */
+	/* left: 50%; */
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	/* transform: translate(-50%, -50%) rotate(90deg); */
+}
+.arrow::after {
+	content: '';
+	width: 0px;
+	height: 0px;
+	border-top: 0px solid transparent;
+	border-bottom: 6px solid rgba(4, 117, 244, 1);
+	/* border-bottom: 6px solid red; */
+	border-left: 3px solid transparent;
+	border-right: 3px solid transparent;
+	position: absolute;
+	top: 0;
+	left: 50%;
+	transform: translate(-50%, 0%);
+}
+
+/* .dot::after {
+	content: '';
+	width: 0px;
+	height: 0px;
+	border-top: 0px solid transparent;
+	border-bottom: 6px solid rgba(4, 117, 244, 1);
+	border-left: 3px solid transparent;
+	border-right: 3px solid transparent;
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+} */
 </style>
